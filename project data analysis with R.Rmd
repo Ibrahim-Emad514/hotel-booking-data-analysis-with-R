@@ -1,0 +1,304 @@
+---
+title: "Hotel Bookings Data Analysis with R"
+author: "Abdelrahman Emad"
+date: "2024-09-16"
+output: 
+  html_document:
+    theme: darkly
+  toc: true 
+  toc_float: true
+   
+---
+
+## Load Libraries and Data Cleaning
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+```
+
+## Load Data
+
+```{r load-data}
+
+hotel_bookings <- read.csv("hotel_bookings.csv")
+
+# Verify column names
+
+names(hotel_bookings)
+
+colnames(hotel_bookings)
+```
+
+## Data overview
+```{r Display-row}
+# Display the first few rows of the data
+head(hotel_bookings)
+```
+
+```{r display-str}
+# Display the structure of the data
+str(hotel_bookings)
+```
+
+
+## preprocessing 
+
+### summarize
+
+```{r summarize-data}
+# summarize all data 
+summary(hotel_bookings)
+```
+
+
+
+### Data Claeaing
+
+
+```{r Checking for Missing Values and Cleaning Data }
+
+# Check for missing values in the columns
+sum(is.na(hotel_bookings))
+
+# Check for any unique or irrelevant values in the 'market_segment' column
+unique(hotel_bookings$market_segment)
+
+# Remove rows where 'market_segment' is "Undefined"
+hotel_bookings_clean <- hotel_bookings[hotel_bookings$market_segment != "Undefined", ]
+
+```
+
+## Data insights
+```{r Resort-per-month}
+# Count records for Resort Hotel per month
+Resort_records_per_month <- hotel_bookings %>%
+  filter(hotel == "Resort Hotel") %>%
+  group_by(arrival_date_month) %>%
+  summarise(num_records = n(), .groups = 'drop') %>%
+  arrange(match(arrival_date_month, month.abb))  # Ensure months are in order
+
+# Print the results
+print(Resort_records_per_month)
+
+```
+
+```{r count-of-booking-per-market }
+# Count the number of bookings per market segment
+table(hotel_bookings_clean$market_segment)
+```
+
+```{r show-segment}
+segment <- hotel_bookings %>%
+  filter(hotel == "City Hotel") %>%
+  group_by(market_segment) %>%
+  summarize(count_of_segments = n(), .groups = 'drop')  # Use n() to count records
+
+# View the result
+print(segment)
+```
+
+## visualization
+
+
+### Pie Chart for Market Segment Distribution
+```{r  Bookings by Market Segment }
+
+# Count the number of bookings per market segment
+market_segment_counts <- hotel_bookings_clean %>%
+  group_by(market_segment) %>%
+  summarise(Count = n(), .groups = 'drop') %>%
+  arrange(desc(Count))
+
+# Plot the bar chart
+ggplot(market_segment_counts, aes(x = reorder(market_segment, -Count), y = Count, fill = market_segment)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  theme_minimal(base_size = 15) +
+  labs(title = "Number of Bookings by Market Segment",
+       x = "Market Segment",
+       y = "Number of Bookings") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 0.5)) +
+  scale_fill_brewer(palette = "Set3") +
+  geom_text(aes(label = Count), vjust = -0.5, color = "black")  # Add data labels
+```
+
+### Count the number of bookings per market segment and calculate percentages
+```{r }
+market_segment_counts <- hotel_bookings_clean %>%
+  group_by(market_segment) %>%
+  summarise(Count = n(), .groups = 'drop') %>%
+  mutate(Percentage = (Count / sum(Count)) * 100)
+
+# Create the pie chart with percentages
+ggplot(market_segment_counts, aes(x = "", y = Percentage, fill = market_segment)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y") +
+  theme_minimal(base_size = 15) +
+  labs(title = "Market Segment Distribution (Percentage)",
+       y = "Percentage") +
+  scale_fill_brewer(palette = "Set3") +
+  theme(axis.text.x = element_blank()) +
+  geom_text(aes(label = paste0(round(Percentage, 1), "%")), 
+            position = position_stack(vjust = 0.5), color = "white")  # Add percentage labels
+
+```
+
+
+### Cancellation Rate by Market Segment
+```{r}
+# Calculate cancellation rate
+cancellation_summary <- hotel_bookings_clean %>%
+  group_by(market_segment) %>%
+  summarise(Canceled = sum(is_canceled), TotalBookings = n())
+cancellation_summary$CancellationRate <- cancellation_summary$Canceled / cancellation_summary$TotalBookings
+
+# Horizontal Bar Chart for Cancellation Rate
+ggplot(cancellation_summary, aes(x = reorder(market_segment, CancellationRate), y = CancellationRate, fill = market_segment)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  theme_minimal() +
+  labs(title = "Cancellation Rate by Market Segment", x = "Market Segment", y = "Cancellation Rate") +
+  scale_fill_brewer(palette = "Set2") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+### Average Daily Rate by Customer Type
+```{r}
+# ADR by Customer Type
+adr_by_customer_type <- hotel_bookings_clean %>%
+  group_by(customer_type) %>%
+  summarise(AverageADR = mean(adr, na.rm = TRUE))
+
+# Plot ADR by Customer Type
+ggplot(adr_by_customer_type, aes(x = customer_type, y = AverageADR, fill = customer_type)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  labs(title = "Average Daily Rate (ADR) by Customer Type", x = "Customer Type", y = "Average ADR") +
+  scale_fill_brewer(palette = "Pastel1") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+### Average Daily Rate by Room Type
+```{r}
+# ADR by Room Type
+adr_by_room_type <- hotel_bookings_clean %>%
+  group_by(reserved_room_type) %>%
+  summarise(AverageADR = mean(adr, na.rm = TRUE), TotalBookings = n())
+
+# Plot ADR by Room Type
+ggplot(adr_by_room_type, aes(x = reserved_room_type, y = AverageADR, fill = reserved_room_type)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  labs(title = "Average Daily Rate (ADR) by Room Type", x = "Room Type", y = "Average ADR") +
+  scale_fill_brewer(palette = "Spectral") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+### cancelled rates by month and hotel
+```{r}
+# Calculate cancellation rates by month and hotel
+cancellation_trend <- hotel_bookings_clean %>%
+  group_by(arrival_date_month, hotel) %>%
+  summarise(
+    Canceled = sum(is_canceled),
+    TotalBookings = n(),
+    CancellationRate = Canceled / TotalBookings,
+    .groups = 'drop'
+  ) %>%
+  arrange(match(arrival_date_month, month.abb))  # Ensure months are in order
+
+# Plot the cancellation rates by month and hotel
+ggplot(cancellation_trend, aes(x = arrival_date_month, y = CancellationRate, fill = hotel)) +
+  geom_col(position = "dodge") +  # Use dodge for side-by-side bars
+  theme_minimal(base_size = 15) +
+  labs(
+    title = "Cancellation Rate by Month and Hotel",
+    x = "Month",
+    y = "Cancellation Rate",
+    fill = "Hotel"
+  ) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +  # Format y-axis as percentage
+  scale_fill_brewer(palette = "Set2") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Adjust x-axis text for readability
+```
+
+### number of bookings by market segment and deposit type
+```{r }
+# Count the number of bookings by market segment and deposit type
+market_segment_counts <- hotel_bookings %>%
+  group_by(market_segment, deposit_type) %>%
+  summarise(Count = n(), .groups = 'drop') %>%
+  arrange(desc(Count))  # Optional: arrange by count for better visualization
+
+# Create the bar chart
+ggplot(data = market_segment_counts, aes(x = market_segment, y = Count, fill = deposit_type)) +
+  geom_bar(stat = "identity", position = "dodge") +  # Use dodge for side-by-side bars
+  theme_minimal(base_size = 15) +
+  labs(
+    title = "Bookings by Market Segment and Deposit Type",
+    x = "Market Segment",
+    y = "Number of Bookings",
+    fill = "Deposit Type"
+  ) +
+  scale_fill_brewer(palette = "Set2") +  # Choose an appropriate color palette
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels
+    legend.position = "top"  # Position legend at the top
+  )
+```
+
+
+### number of bookings by customer type and reserved room type
+```{r}
+# Count the number of bookings by customer type and reserved room type
+customer_room_counts <- hotel_bookings %>%
+  group_by(customer_type, reserved_room_type) %>%
+  summarise(Count = n(), .groups = 'drop') %>%
+  arrange(desc(Count))  # Optional: arrange by count for better visualization
+
+# Create the bar chart
+ggplot(data = customer_room_counts, aes(x = customer_type, y = Count, fill = reserved_room_type)) +
+  geom_bar(stat = "identity", position = "dodge") +  # Use dodge for side-by-side bars
+  theme_minimal(base_size = 15) +
+  labs(
+    title = "Bookings by Customer Type and Reserved Room Type",
+    x = "Customer Type",
+    y = "Number of Bookings",
+    fill = "Reserved Room Type"
+  ) +
+  scale_fill_brewer(palette = "Set2") +  # Choose an appropriate color palette
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels
+    legend.position = "top"  # Position legend at the top
+  )
+```
+
+### 'is_canceled' to a factor by Reservations
+```{r }
+# Convert 'is_canceled' to a factor for better labeling
+hotel_bookings$is_canceled <- factor(hotel_bookings$is_canceled, levels = c(0, 1), labels = c("Not Cancelled", "Cancelled"))
+
+# Create the count plot with a custom color palette
+ggplot(data = hotel_bookings, aes(x = hotel, fill = is_canceled)) +
+  geom_bar(position = "dodge", color = "white", width = 0.7) +  # Use white borders for clarity
+  theme_minimal(base_size = 15) +  # Use a clean, minimal theme
+  labs(
+    title = "Reservation Status by Hotel",
+    x = "Hotel",
+    y = "Number of Reservations",
+    fill = "Reservation Status"
+  ) +
+  scale_fill_manual(values = c("#58E085", "#F0B2F0")) +  # Custom color palette
+  theme(
+    plot.background = element_rect(fill = "#F5F5F5"),  # Light background for contrast
+    panel.background = element_rect(fill = "white"),  # White panel for clarity
+    legend.position = "top",  # Legend positioned at the top
+    legend.title = element_blank(),  # Remove legend title for simplicity
+    axis.text.x = element_text(angle = 30, hjust = 1),  # Slight rotation for x-axis labels
+    axis.title.x = element_text(face = "bold"),  # Bold x-axis title
+    axis.title.y = element_text(face = "bold")   # Bold y-axis title
+  ) +
+  geom_text(stat = 'count', aes(label = ..count..), 
+            position = position_dodge(0.7), vjust = -0.5, size = 4, color = "black")  # Add count labels above bars
+
+```
